@@ -7,6 +7,15 @@ import (
 	"strings"
 )
 
+// struct tag name, if want to skip field for checking, add tag with "skip" or "-" value
+//
+// example:
+//
+//	type Person struct {
+//	   Name string `boo:"-"`
+//	}
+const tagName = "boo"
+
 // Compare two equal struct between each other and while finding differences
 // return name of struct, old data and new data in other case error or
 // "no difference" which mean the variables same
@@ -38,7 +47,7 @@ func TwoEqualStructs[K comparable](first, second K) (string, error) {
 		return "", fmt.Errorf("second input is not struct but %T", first)
 	}
 
-	text := twoStructsinfo(map1, map2, reflect.TypeOf(first).Name())
+	text := twoStructsinfo(map1, map2, reflect.TypeOf(first).Name(), reflect.TypeOf(first))
 	if text != "" {
 		return text[:len(text)-2], nil
 	}
@@ -47,14 +56,19 @@ func TwoEqualStructs[K comparable](first, second K) (string, error) {
 }
 
 // recursion to compare structs fields
-func twoStructsinfo(map1, map2 map[string]any, stName string) (text string) {
+func twoStructsinfo(map1, map2 map[string]any, stName string, tag reflect.Type) (text string) {
 	for k, v := range map1 {
+		f, _ := tag.FieldByName(k)
 		if _, ok := v.(map[string]any); ok {
-			text += twoStructsinfo(v.(map[string]any), map2[k].(map[string]any), stName+"."+k)
+			text += twoStructsinfo(v.(map[string]any), map2[k].(map[string]any), stName+"."+k, f.Type)
 		} else if map2[k] != v {
+			if strings.Contains(f.Tag.Get(tagName), "-") || strings.Contains(f.Tag.Get(tagName), "skip") {
+				continue
+			}
+
 			text += stName + "." + k + " was "
 			switch v.(type) {
-			case int, int8, int16, int64, uint, uint8, uint16, uint32, uint64, float32, float64, complex64, complex128, bool:
+			default:
 				text += fmt.Sprintf(`%v`, v)
 			case string:
 				text += fmt.Sprintf(`"%v"`, v)
@@ -64,7 +78,7 @@ func twoStructsinfo(map1, map2 map[string]any, stName string) (text string) {
 
 			text += " and now "
 			switch map2[k].(type) {
-			case int, int8, int16, int64, uint, uint8, uint16, uint32, uint64, float32, float64, complex64, complex128, bool:
+			default:
 				text += fmt.Sprintf(`%v, `, map2[k])
 			case string:
 				text += fmt.Sprintf(`"%v", `, map2[k])
