@@ -7,14 +7,15 @@ import (
 	"strings"
 )
 
-// struct tag name, if want to skip field for checking, add tag with "skip" or "-" value
+// struct tag name, if want to skip field for checking, add tag with "-" value
+// else will be name of field
 //
 // example:
 //
 //	type Person struct {
 //	   Name string `boo:"-"`
 //	}
-const tagName = "boo"
+const tag = "boo"
 
 // Compare two equal struct between each other and while finding differences
 // return name of struct, old data and new data in other case error or
@@ -23,31 +24,33 @@ const tagName = "boo"
 // example:
 //
 //	type Person struct {
-//	    Name string        |  f:  "Jonny"       |  s:  "Bob"
-//	    Age  int8          |      20            |      22
-//	    Book struct {      |                    |
-//	        Name string    |      "Warcraft"    |      "Dune"
-//	        Returnd bool   |      true          |      false
-//	    }                  |                    |
+//	    Name string `boo:"name"`           | f:  "Jonny"       | s:  "Bob"
+//	    Age  uint8                         |     20            |     22
+//	    Book struct {                      |                   |
+//	        Name     string                |     "Warcraft"    |     "Dune"
+//	        Returned bool `boo:"returned"` |     true          |     false
+//	    }                                  |                   |
 //	}
 //
 // compare.TwoEqualStructs(f, s)
 //
-// return: Person.Name was "Jonny" and now "Bob",
+// return: name was "Jonny" and now "Bob",
 // Person.Age was 20 and now 22,
-// Person.Book.Name was "Warcraft" and now "Dune"
-// Person.Book.Returnd was true and now false
+// Person.Book.Name was "Warcraft" and now "Dune",
+// returned was true and now false
 func TwoEqualStructs[K comparable](first, second K) (string, error) {
-	map1, ok := isStruct(json.Marshal(first))
+	// check if given values are struct
+	st1, ok := isStruct(json.Marshal(first))
 	if !ok {
 		return "", fmt.Errorf("first input is not struct but %T", first)
 	}
-	map2, ok := isStruct(json.Marshal(second))
+	st2, ok := isStruct(json.Marshal(second))
 	if !ok {
 		return "", fmt.Errorf("second input is not struct but %T", first)
 	}
 
-	text := twoStructsinfo(map1, map2, reflect.TypeOf(first).Name(), reflect.TypeOf(first))
+	// start comparing
+	text := twoStructsinfo(st1, st2, reflect.TypeOf(first).Name(), reflect.TypeOf(first))
 	if text != "" {
 		return text[:len(text)-2], nil
 	}
@@ -56,34 +59,45 @@ func TwoEqualStructs[K comparable](first, second K) (string, error) {
 }
 
 // recursion to compare structs fields
-func twoStructsinfo(map1, map2 map[string]any, stName string, tag reflect.Type) (text string) {
-	for k, v := range map1 {
-		f, _ := tag.FieldByName(k)
-		if _, ok := v.(map[string]any); ok {
-			text += twoStructsinfo(v.(map[string]any), map2[k].(map[string]any), stName+"."+k, f.Type)
-		} else if map2[k] != v {
-			if strings.Contains(f.Tag.Get(tagName), "-") || strings.Contains(f.Tag.Get(tagName), "skip") {
+func twoStructsinfo(st1, st2 map[string]any, stName string, rt reflect.Type) (text string) {
+	// get data from first struct
+	for key, val := range st1 {
+		f, _ := rt.FieldByName(key)
+		// check if field of this struct is anther struct,
+		// if so, recursively continue
+		if _, ok := val.(map[string]any); ok {
+			text += twoStructsinfo(val.(map[string]any), st2[key].(map[string]any), stName+"."+key, f.Type)
+		} else if st2[key] != val {
+			// check tag
+			tagVal := f.Tag.Get(tag)
+			if tagVal == "-" {
 				continue
 			}
-
-			text += stName + "." + k + " was "
-			switch v.(type) {
-			default:
-				text += fmt.Sprintf(`%v`, v)
-			case string:
-				text += fmt.Sprintf(`"%v"`, v)
-			case nil:
-				text += "nil"
+			if tagVal != "" {
+				text += tagVal + " was"
+			} else {
+				text += stName + "." + key + " was"
 			}
 
-			text += " and now "
-			switch map2[k].(type) {
-			default:
-				text += fmt.Sprintf(`%v, `, map2[k])
-			case string:
-				text += fmt.Sprintf(`"%v", `, map2[k])
+			// check type of first field, and set the past value
+			switch val.(type) {
 			case nil:
-				text += "nil, "
+				text += "nil"
+			case string:
+				text += fmt.Sprintf(` "%v"`, val)
+			default:
+				text += fmt.Sprintf(` %v`, val)
+			}
+
+			// check type of second field, and set the future value
+			text += " and now"
+			switch st2[key].(type) {
+			case nil:
+				text += " nil, "
+			case string:
+				text += fmt.Sprintf(` "%v", `, st2[key])
+			default:
+				text += fmt.Sprintf(` %v, `, st2[key])
 			}
 		}
 	}
