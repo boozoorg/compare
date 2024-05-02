@@ -82,14 +82,14 @@ func twoStructsinfo(st1, st2 map[string]any, stName string, rt reflect.Type) (te
 			// check type of first field, and set the past value
 			switch val.(type) {
 			case nil:
-				text += "nil"
+				text += " nil"
 			case string:
 				text += fmt.Sprintf(` "%v"`, val)
 			default:
 				text += fmt.Sprintf(` %v`, val)
 			}
 
-			// check type of second field, and set the future value
+			// check type of second field, and set the present value
 			text += " and now"
 			switch st2[key].(type) {
 			case nil:
