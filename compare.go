@@ -8,7 +8,8 @@ import (
 // compare to comparable type
 func IsEqual[K comparable](first, second K) bool {
 	if reflect.ValueOf(first).Kind() == reflect.Pointer {
-		return fmt.Sprint(getDataFromPointer(reflect.ValueOf(first))) == fmt.Sprint(getDataFromPointer(reflect.ValueOf(second)))
+		f, s := getDataFromPointer(reflect.ValueOf(first)), getDataFromPointer(reflect.ValueOf(second))
+		return fmt.Sprint(f) == fmt.Sprint(s) && (f.IsValid() == s.IsValid())
 	}
 	return first == second
 }

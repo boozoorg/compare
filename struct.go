@@ -42,15 +42,12 @@ func TwoEqualStructs[K comparable](first, second K) (string, error) {
 	// check if given values are struct
 	st1, ok := isStruct(json.Marshal(first))
 	if !ok {
-		return "", fmt.Errorf("first input is not struct but %T", first)
+		return "", fmt.Errorf("input is not struct but: %T", first)
 	}
-	st2, ok := isStruct(json.Marshal(second))
-	if !ok {
-		return "", fmt.Errorf("second input is not struct but %T", first)
-	}
+	st2, _ := isStruct(json.Marshal(second))
 
 	// start comparing
-	text := twoStructsinfo(st1, st2, reflect.TypeOf(first).Name(), reflect.TypeOf(first))
+	text := twoStructsInfo(st1, st2, reflect.TypeOf(first).Name(), reflect.TypeOf(first))
 	if text != "" {
 		return text[:len(text)-2], nil
 	}
@@ -59,49 +56,44 @@ func TwoEqualStructs[K comparable](first, second K) (string, error) {
 }
 
 // recursion to compare structs fields
-func twoStructsinfo(st1, st2 map[string]any, stName string, rt reflect.Type) (text string) {
+func twoStructsInfo(st1, st2 map[string]any, stName string, rt reflect.Type) (text string) {
 	// get data from first struct
 	for key, val := range st1 {
 		f, _ := rt.FieldByName(key)
 		// check if field of this struct is anther struct,
 		// if so, recursively continue
 		if _, ok := val.(map[string]any); ok {
-			text += twoStructsinfo(val.(map[string]any), st2[key].(map[string]any), stName+"."+key, f.Type)
+			text += twoStructsInfo(val.(map[string]any), st2[key].(map[string]any), stName+"."+key, f.Type)
 		} else if st2[key] != val {
 			// check tag
 			tagVal := f.Tag.Get(tag)
-			if tagVal == "-" {
+			switch tagVal {
+			case "-":
 				continue
-			}
-			if tagVal != "" {
-				text += tagVal + " was"
-			} else {
+			case "":
 				text += stName + "." + key + " was"
+			default:
+				text += tagVal + " was"
 			}
-
 			// check type of first field, and set the past value
-			switch val.(type) {
-			case nil:
-				text += " nil"
-			case string:
-				text += fmt.Sprintf(` "%v"`, val)
-			default:
-				text += fmt.Sprintf(` %v`, val)
-			}
-
 			// check type of second field, and set the present value
-			text += " and now"
-			switch st2[key].(type) {
-			case nil:
-				text += " nil, "
-			case string:
-				text += fmt.Sprintf(` "%v", `, st2[key])
-			default:
-				text += fmt.Sprintf(` %v, `, st2[key])
-			}
+			text += field2Text(val) + " and now" + field2Text(st2[key]) + ", "
 		}
 	}
 
+	return
+}
+
+func field2Text(val any) (text string) {
+	rf := getDataFromPointer(reflect.ValueOf(val))
+	switch rf.Kind() {
+	case reflect.Invalid:
+		text = " nil"
+	case reflect.String:
+		text = fmt.Sprintf(` "%v"`, val)
+	default:
+		text = fmt.Sprintf(" %v", val)
+	}
 	return
 }
 
