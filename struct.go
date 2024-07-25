@@ -17,6 +17,14 @@ import (
 //	}
 const tag = "boo"
 
+type Difference struct {
+	Name string `json:"name"`
+	Old  string `json:"old"`
+	New  string `json:"new"`
+}
+
+type Differences []Difference
+
 // Compare two equal struct between each other and while finding differences
 // return name of struct, old data and new data in other case error or
 // "no difference" which mean the variables same
@@ -34,50 +42,49 @@ const tag = "boo"
 //
 // compare.TwoEqualStructs(f, s)
 //
-// return: name was "Jonny" and now "Bob",
-// Person.Age was 20 and now 22,
-// Person.Book.Name was "Warcraft" and now "Dune",
-// returned was true and now false
-func TwoEqualStructs[K comparable](first, second K) (string, error) {
+// return: [{Name:"name" Old:"Jonny" New:"Bob"}
+// {Name:"Person.Age" Old:"20" New:"22"}
+// {Name:"Person.Book.Name" Old:"Warcraft" New:"Dune"}
+// {Name:"returned" Old:"true" New:"false"}]
+func TwoEqualStructs[K comparable](first, second K) (difs Differences, err error) {
 	// check if given values are struct
 	st1, ok := isStruct(json.Marshal(first))
 	if !ok {
-		return "", fmt.Errorf("input is not struct but: %T", first)
+		return difs, fmt.Errorf("input is not struct but: %T", first)
 	}
 	st2, _ := isStruct(json.Marshal(second))
 
 	// start comparing
-	text := twoStructsInfo(st1, st2, reflect.TypeOf(first).Name(), reflect.TypeOf(first))
-	if text != "" {
-		return text[:len(text)-2], nil
-	}
+	difs = twoStructsInfo(st1, st2, reflect.TypeOf(first).Name(), reflect.TypeOf(first))
 
-	return "no difference", nil
+	return difs, nil
 }
 
 // recursion to compare structs fields
-func twoStructsInfo(st1, st2 map[string]any, stName string, rt reflect.Type) (text string) {
+func twoStructsInfo(st1, st2 map[string]any, stName string, rt reflect.Type) (difs Differences) {
 	// get data from first struct
 	for key, val := range st1 {
 		f, _ := rt.FieldByName(key)
 		// check if field of this struct is anther struct,
 		// if so, recursively continue
 		if _, ok := val.(map[string]any); ok {
-			text += twoStructsInfo(val.(map[string]any), st2[key].(map[string]any), stName+"."+key, f.Type)
+			difs = append(difs, twoStructsInfo(val.(map[string]any), st2[key].(map[string]any), stName+"."+key, f.Type)...)
 		} else if st2[key] != val {
 			// check tag
-			tagVal := f.Tag.Get(tag)
-			switch tagVal {
+			_name := f.Tag.Get(tag)
+			switch _name {
 			case "-":
 				continue
 			case "":
-				text += stName + "." + key + " was"
-			default:
-				text += tagVal + " was"
+				_name += stName + "." + key
 			}
-			// check type of first field, and set the past value
-			// check type of second field, and set the present value
-			text += field2Text(val) + " and now" + field2Text(st2[key]) + ", "
+			// check type of first field, and set the old value
+			// check type of second field, and set the new value
+			difs = append(difs, Difference{
+				Name: _name,
+				Old:  field2Text(val),
+				New:  field2Text(st2[key]),
+			})
 		}
 	}
 
@@ -88,11 +95,9 @@ func field2Text(val any) (text string) {
 	rf := getDataFromPointer(reflect.ValueOf(val))
 	switch rf.Kind() {
 	case reflect.Invalid:
-		text = " nil"
-	case reflect.String:
-		text = fmt.Sprintf(` "%v"`, val)
+		text = "nil"
 	default:
-		text = fmt.Sprintf(" %v", val)
+		text = fmt.Sprintf("%v", val)
 	}
 	return
 }
