@@ -14,6 +14,7 @@ func IsEqual[K comparable](first, second K) bool {
 	return first == second
 }
 
+// recursively get value from pointer
 func getDataFromPointer(v reflect.Value) reflect.Value {
 	if v.Kind() == reflect.Pointer {
 		return getDataFromPointer(v.Elem())
