@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/boozoorg/compare"
 )
 
@@ -24,5 +26,5 @@ func main() {
 		ID: 2, Name: "buzurg", Age: 23, Book: Book{Name: "XXX", Returned: false},
 	}
 	resp, _ := compare.TwoEqualStructs(f, s)
-	println(resp)
+	fmt.Printf("%+v\n", resp)
 }

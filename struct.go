@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"strings"
 )
 
 // struct tag name, if want to skip field for checking, add tag with "-" value
@@ -18,9 +17,9 @@ import (
 const tag = "boo"
 
 type Difference struct {
-	Name string `json:"name"`
-	Old  string `json:"old"`
-	New  string `json:"new"`
+	Name string
+	Old  string
+	New  string
 }
 
 type Differences []Difference
@@ -46,73 +45,59 @@ type Differences []Difference
 // {Name:"Person.Age" Old:"20" New:"22"}
 // {Name:"Person.Book.Name" Old:"Warcraft" New:"Dune"}
 // {Name:"returned" Old:"true" New:"false"}]
-func TwoEqualStructs[K comparable](first, second K) (difs Differences, err error) {
+func TwoEqualStructs[K comparable](first, second K) (Differences, error) {
 	// check if given values are struct
 	st1, ok := isStruct(json.Marshal(first))
 	if !ok {
-		return difs, fmt.Errorf("input is not struct but: %T", first)
+		return Differences{}, fmt.Errorf("input is not struct but: %T", first)
 	}
 	st2, _ := isStruct(json.Marshal(second))
-
 	// start comparing
-	difs = twoStructsInfo(st1, st2, reflect.TypeOf(first).Name(), reflect.TypeOf(first))
-
-	return difs, nil
+	return twoEqualStructs(st1, st2, reflect.TypeOf(first).Name(), reflect.TypeOf(second)), nil
 }
 
 // recursion to compare structs fields
-func twoStructsInfo(st1, st2 map[string]any, stName string, rt reflect.Type) (difs Differences) {
+func twoEqualStructs(st1, st2 map[string]any, stN string, rt reflect.Type) (difs Differences) {
 	// get data from first struct
-	for key, val := range st1 {
-		f, _ := rt.FieldByName(key)
+	for k, v := range st1 {
+		f, _ := rt.FieldByName(k)
 		// check if field of this struct is anther struct,
 		// if so, recursively continue
-		if _, ok := val.(map[string]any); ok {
-			difs = append(difs, twoStructsInfo(val.(map[string]any), st2[key].(map[string]any), stName+"."+key, f.Type)...)
-		} else if st2[key] != val {
+		if _, ok := v.(map[string]any); ok {
+			difs = append(difs, twoEqualStructs(v.(map[string]any), st2[k].(map[string]any), stN+"."+k, f.Type)...)
+		} else if st2[k] != v {
 			// check tag
-			_name := f.Tag.Get(tag)
-			switch _name {
+			tn := f.Tag.Get(tag)
+			switch tn {
 			case "-":
 				continue
 			case "":
-				_name += stName + "." + key
+				tn += stN + "." + k
 			}
 			// check type of first field, and set the old value
 			// check type of second field, and set the new value
 			difs = append(difs, Difference{
-				Name: _name,
-				Old:  field2Text(val),
-				New:  field2Text(st2[key]),
+				Name: tn,
+				Old:  field2Text(v),
+				New:  field2Text(st2[k]),
 			})
 		}
 	}
-
 	return
 }
 
-func field2Text(val any) (text string) {
-	rf := getDataFromPointer(reflect.ValueOf(val))
-	switch rf.Kind() {
+// format struct value
+func field2Text(val any) string {
+	switch getDataFromPointer(reflect.ValueOf(val)).Kind() {
 	case reflect.Invalid:
-		text = "nil"
+		return "nil"
 	default:
-		text = fmt.Sprintf("%v", val)
+		return fmt.Sprintf("%v", val)
 	}
-	return
 }
 
-// Check is given variable is struct
-func IsStruct(s any) (ok bool) {
-	if strings.Contains(fmt.Sprintf("%T", s), "map") {
-		return false
-	}
-	_, ok = isStruct(json.Marshal(s))
-	return
-}
-
-// check is given []byte is struct, if yes return unmarshaled struct into map[string]any and true else nil map and false
-func isStruct(st []byte, _ error) (map[string]any, bool) {
-	var m map[string]any
+// check is given []byte is struct, if yes return unmarshaled struct
+// into map[string]any and true else nil map and false
+func isStruct(st []byte, _ error) (m map[string]any, ok bool) {
 	return m, json.Unmarshal(st, &m) == nil
 }
