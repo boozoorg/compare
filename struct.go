@@ -49,7 +49,7 @@ func TwoEqualStructs[K comparable](first, second K) (Differences, error) {
 	// check if given values are struct
 	st1, ok := isStruct(json.Marshal(first))
 	if !ok {
-		return Differences{}, fmt.Errorf("input is not struct but: %T", first)
+		return Differences{}, fmt.Errorf("inputs are not structs but: %T", first)
 	}
 	st2, _ := isStruct(json.Marshal(second))
 	// start comparing
