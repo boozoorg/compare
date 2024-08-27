@@ -9,7 +9,7 @@ import (
 func IsEqual[K comparable](first, second K) bool {
 	if reflect.ValueOf(first).Kind() == reflect.Pointer {
 		f, s := getDataFromPointer(reflect.ValueOf(first)), getDataFromPointer(reflect.ValueOf(second))
-		return fmt.Sprint(f) == fmt.Sprint(s) && (f.IsValid() == s.IsValid())
+		return fmt.Sprint(f) == fmt.Sprint(s) && f.IsValid() == s.IsValid()
 	}
 	return first == second
 }
